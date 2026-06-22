@@ -1,7 +1,39 @@
-.claude
-daily-logs/
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Project specifics
+dailyread.exe
+dailyread
+dailyread.db
+downloads/
+.env
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Logs
 logs/
-.exe
-.db
-.ipynb_checkpoints/
+daily-logs/
 *.log
+
+# Environment files
+.env.local
+.env.*
+
+# OS and IDE files
+.claude
+.ipynb_checkpoints/
+.vscode/
+.idea/
+.DS_Store
