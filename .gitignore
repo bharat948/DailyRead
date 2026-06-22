@@ -1,0 +1,7 @@
+.claude
+daily-logs/
+logs/
+.exe
+.db
+.ipynb_checkpoints/
+*.log

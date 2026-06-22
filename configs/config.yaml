@@ -1,0 +1,46 @@
+user:
+  email: "bharatpatidar002@gmail.com"
+  name: "Bharat"
+
+schedule:
+  cron: "0 7 * * SAT"      # Saturday 07:00
+  timezone: "Asia/Kolkata"
+  catch_up: true
+
+weekly:
+  max_items: 6             # total reading-list size budget
+  primary_floor: 2         # min items for the primary interest
+
+interests:
+  - tag: "distributed-systems"
+    primary: true
+    intensity: high
+    types: [case_study, article, pdf]
+  - tag: "ai-evals"
+    intensity: medium
+  - tag: "engineering-leadership"
+    intensity: light
+
+search:
+  priority: [tavily, brave, searxng, ddg]
+  fanout: true
+  monthly_caps: 
+    tavily: 900
+    brave: 1800
+  searxng_base_url: ""                         # set to enable
+
+models:                     # optional overrides; defaults from router table
+  triage: "claude-haiku-4-5"
+  research: "claude-opus-4-8"
+
+budgets:
+  research_max_rounds: 8
+  research_max_tool_calls: 40
+  per_run_token_cap: 1500000
+
+email:
+  channel: smtp            # smtp | api
+  attach_max_mb: 8
+
+paths:
+  data_dir: ""             # default per-OS
