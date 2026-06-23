@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 
-	"dailyread/internal/config"
 	"dailyread/internal/domain"
 	"dailyread/internal/llm"
 )
@@ -14,14 +13,14 @@ import (
 type Agent struct {
 	llmClient llm.Client
 	model     string
-	weekly    config.WeeklyConfig
+	maxItems  int
 }
 
-func New(client llm.Client, model string, weekly config.WeeklyConfig) *Agent {
+func New(client llm.Client, model string, maxItems int) *Agent {
 	return &Agent{
 		llmClient: client,
 		model:     model,
-		weekly:    weekly,
+		maxItems:  maxItems,
 	}
 }
 
@@ -34,12 +33,12 @@ func (a *Agent) Run(ctx context.Context, pool []domain.Candidate) ([]domain.Cand
 		return nil, nil
 	}
 
-	if len(pool) <= a.weekly.MaxItems {
-		slog.Info("Candidate pool is smaller than max items, returning all", "pool_size", len(pool), "max", a.weekly.MaxItems)
+	if len(pool) <= a.maxItems {
+		slog.Info("Candidate pool is smaller than max items, returning all", "pool_size", len(pool), "max", a.maxItems)
 		return pool, nil
 	}
 
-	slog.Info("Triaging candidates", "pool_size", len(pool), "target", a.weekly.MaxItems)
+	slog.Info("Triaging candidates", "pool_size", len(pool), "target", a.maxItems)
 
 	// Format the pool into a numbered list
 	poolJSON, _ := json.MarshalIndent(pool, "", "  ")
@@ -52,7 +51,7 @@ You will be given a JSON array of candidate articles. Each article has an implic
 Evaluate the candidates based on relevance, technical depth, and diversity of topics.
 
 Return your answer strictly according to the schema: an object with a 'selected_indices' array containing exactly %d integers.
-`, a.weekly.MaxItems, a.weekly.PrimaryFloor, a.weekly.MaxItems)
+`, a.maxItems, 0, a.maxItems)
 
 	req := llm.StructuredRequest{
 		Model:  a.model,

@@ -3,9 +3,13 @@ package llm
 import (
 	"fmt"
 	"strings"
-
-	"dailyread/internal/config"
 )
+
+type ModelsConfig struct {
+	Provider string
+	Research string
+	Triage   string
+}
 
 type Role string
 
@@ -19,12 +23,12 @@ const (
 )
 
 type Router struct {
-	cfg             config.ModelsConfig
+	cfg             ModelsConfig
 	anthropicClient *AnthropicClient
 	openaiClient    *OpenAIClient
 }
 
-func NewRouter(cfg config.ModelsConfig) *Router {
+func NewRouter(cfg ModelsConfig) *Router {
 	return &Router{
 		cfg:             cfg,
 		anthropicClient: NewAnthropicClient(),

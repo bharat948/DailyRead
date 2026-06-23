@@ -4,18 +4,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DailyRead Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-color: #0f172a;
-            --card-bg: rgba(30, 41, 59, 0.7);
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-            --accent: #3b82f6;
-            --accent-hover: #2563eb;
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --accent: #2563eb;
+            --accent-hover: #1d4ed8;
             --danger: #ef4444;
             --danger-hover: #dc2626;
             --success: #10b981;
-            --glass-border: rgba(255, 255, 255, 0.1);
+            --glass-border: #e2e8f0;
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
         }
 
         * {
@@ -25,47 +29,53 @@
         }
 
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            font-family: 'Plus Jakarta Sans', sans-serif;
             background-color: var(--bg-color);
             color: var(--text-main);
             line-height: 1.6;
             min-height: 100vh;
-            background-image: 
-                radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.15) 0px, transparent 50%),
-                radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.15) 0px, transparent 50%);
-            background-attachment: fixed;
+        }
+
+        .navbar {
+            background: var(--card-bg);
+            border-bottom: 1px solid var(--glass-border);
+            padding: 15px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .navbar-brand {
+            font-size: 1.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #2563eb, #7c3aed);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
 
         .container {
-            max-width: 1000px;
+            max-width: 1100px;
             margin: 0 auto;
             padding: 40px 20px;
         }
 
         header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
             margin-bottom: 40px;
-            padding-bottom: 20px;
-            border-bottom: 1px solid var(--glass-border);
         }
 
         h1 {
-            font-size: 2.5rem;
+            font-size: 2.2rem;
             font-weight: 800;
-            background: linear-gradient(to right, #60a5fa, #a78bfa);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            color: var(--text-main);
         }
 
         .flash {
             padding: 15px 20px;
-            border-radius: 8px;
+            border-radius: 12px;
             margin-bottom: 30px;
-            font-weight: 500;
-            backdrop-filter: blur(10px);
+            font-weight: 600;
             animation: slideIn 0.3s ease-out;
+            box-shadow: var(--shadow-sm);
         }
 
         @keyframes slideIn {
@@ -74,39 +84,44 @@
         }
 
         .flash.success {
-            background: rgba(16, 185, 129, 0.1);
-            border: 1px solid rgba(16, 185, 129, 0.2);
-            color: #34d399;
+            background: #ecfdf5;
+            border: 1px solid #a7f3d0;
+            color: #059669;
         }
 
         .flash.error {
-            background: rgba(239, 68, 68, 0.1);
-            border: 1px solid rgba(239, 68, 68, 0.2);
-            color: #f87171;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #dc2626;
         }
 
         .grid {
             display: grid;
-            grid-template-columns: 1fr 350px;
+            grid-template-columns: 1fr 380px;
             gap: 30px;
         }
 
         .card {
             background: var(--card-bg);
-            backdrop-filter: blur(12px);
             border: 1px solid var(--glass-border);
             border-radius: 16px;
-            padding: 25px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            padding: 30px;
+            box-shadow: var(--shadow-sm);
+            margin-bottom: 30px;
+            transition: box-shadow 0.2s;
+        }
+
+        .card:hover {
+            box-shadow: var(--shadow-md);
         }
 
         .card h2 {
             font-size: 1.25rem;
-            margin-bottom: 20px;
+            font-weight: 700;
+            margin-bottom: 25px;
             color: var(--text-main);
-            display: flex;
-            align-items: center;
-            gap: 10px;
+            border-bottom: 2px solid #f1f5f9;
+            padding-bottom: 10px;
         }
 
         /* Lists */
@@ -118,38 +133,40 @@
         }
 
         .interest-item {
-            background: rgba(255, 255, 255, 0.03);
+            background: #f8fafc;
             border: 1px solid var(--glass-border);
             border-radius: 12px;
-            padding: 15px 20px;
+            padding: 20px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            transition: transform 0.2s, background 0.2s;
+            transition: transform 0.2s;
         }
 
         .interest-item:hover {
             transform: translateY(-2px);
-            background: rgba(255, 255, 255, 0.05);
+            background: #fff;
+            box-shadow: var(--shadow-md);
         }
 
         .interest-info h3 {
             font-size: 1.1rem;
-            margin-bottom: 4px;
+            margin-bottom: 6px;
+            color: #1e293b;
         }
 
         .badge {
             display: inline-block;
-            padding: 2px 8px;
+            padding: 4px 10px;
             border-radius: 9999px;
-            font-size: 0.75rem;
-            font-weight: 600;
+            font-size: 0.7rem;
+            font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.05em;
         }
 
-        .badge.primary { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
-        .badge.intensity { background: rgba(139, 92, 246, 0.2); color: #a78bfa; }
+        .badge.primary { background: #dbeafe; color: #2563eb; }
+        .badge.intensity { background: #f3e8ff; color: #7c3aed; }
         
         .types {
             font-size: 0.85rem;
@@ -159,101 +176,113 @@
 
         /* Forms */
         .form-group {
-            margin-bottom: 15px;
+            margin-bottom: 20px;
         }
 
         label {
             display: block;
-            margin-bottom: 5px;
+            margin-bottom: 8px;
             font-size: 0.9rem;
-            color: var(--text-muted);
+            font-weight: 600;
+            color: #475569;
         }
 
         input, select {
             width: 100%;
-            padding: 10px 12px;
-            background: rgba(15, 23, 42, 0.5);
+            padding: 12px 16px;
+            background: #f8fafc;
             border: 1px solid var(--glass-border);
-            border-radius: 8px;
+            border-radius: 10px;
             color: var(--text-main);
             font-family: inherit;
-            transition: border-color 0.2s;
+            font-size: 0.95rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
         }
 
         input:focus, select:focus {
             outline: none;
             border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+            background: #fff;
+        }
+
+        .help-text {
+            display: block;
+            margin-top: 5px;
+            font-size: 0.8rem;
+            color: var(--text-muted);
         }
 
         /* Buttons */
         .btn {
             display: inline-block;
-            padding: 10px 20px;
-            border-radius: 8px;
+            padding: 12px 24px;
+            border-radius: 10px;
             border: none;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s;
             text-align: center;
             font-family: inherit;
+            font-size: 0.95rem;
         }
 
         .btn-primary {
             background: var(--accent);
             color: white;
             width: 100%;
+            box-shadow: var(--shadow-sm);
         }
 
         .btn-primary:hover {
             background: var(--accent-hover);
             transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
         }
 
         .btn-danger {
             background: transparent;
             color: var(--danger);
-            border: 1px solid var(--danger);
-            padding: 6px 12px;
+            border: 1px solid #fca5a5;
+            padding: 8px 16px;
             font-size: 0.85rem;
+            border-radius: 8px;
         }
 
         .btn-danger:hover {
-            background: var(--danger);
-            color: white;
+            background: #fef2f2;
+            border-color: var(--danger);
         }
 
         .btn-massive {
             display: block;
             width: 100%;
-            padding: 20px;
+            padding: 24px;
             font-size: 1.25rem;
-            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            background: linear-gradient(135deg, #2563eb, #7c3aed);
             color: white;
             border: none;
-            border-radius: 12px;
-            font-weight: bold;
+            border-radius: 16px;
+            font-weight: 800;
             cursor: pointer;
             transition: transform 0.2s, box-shadow 0.2s;
-            margin-bottom: 20px;
+            margin-bottom: 30px;
+            box-shadow: var(--shadow-md);
         }
 
         .btn-massive:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px -10px rgba(139, 92, 246, 0.5);
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-lg);
         }
 
-        /* Stats */
-        .stat-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 12px 0;
-            border-bottom: 1px solid var(--glass-border);
+        .btn-nav {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            font-weight: 600;
+            cursor: pointer;
         }
-        .stat-row:last-child {
-            border-bottom: none;
-        }
-        .stat-label { color: var(--text-muted); }
-        .stat-value { font-weight: 600; }
+        .btn-nav:hover { color: var(--text-main); }
 
         @media (max-width: 768px) {
             .grid { grid-template-columns: 1fr; }
@@ -261,12 +290,19 @@
     </style>
 </head>
 <body>
+    <nav class="navbar">
+        <div class="navbar-brand">DailyRead</div>
+        <div>
+            <form action="/logout" method="POST" style="margin:0;">
+                <button type="submit" class="btn-nav">Log Out</button>
+            </form>
+        </div>
+    </nav>
+
     <div class="container">
         <header>
-            <h1>DailyRead</h1>
-            <div style="color: var(--text-muted);">
-                Welcome, {{.Config.User.Name}}
-            </div>
+            <h1>Your Weekly Digest</h1>
+            <p style="color: var(--text-muted); margin-top: 5px;">Configure your personalized multi-agent reading assistant.</p>
         </header>
 
         {{if .Flash}}
@@ -277,25 +313,23 @@
 
         <div class="grid">
             <div class="main-column">
-                <div class="card" style="margin-bottom: 30px;">
+                <div class="card">
                     <h2>Active Interests</h2>
                     <ul class="interest-list">
-                        {{range .Config.Interests}}
+                        {{range .Interests}}
                         <li class="interest-item">
                             <div class="interest-info">
                                 <h3>
                                     {{.Tag}}
-                                    {{if .Primary}}<span class="badge primary">Primary</span>{{end}}
+                                    {{if .IsPrimary}}<span class="badge primary">Primary</span>{{end}}
                                     <span class="badge intensity">{{.Intensity}}</span>
                                 </h3>
                                 <div class="types">Types: {{range .Types}}{{.}} {{end}}</div>
                             </div>
-                            {{if not .Primary}}
                             <form action="/interests/delete" method="POST" style="margin: 0;">
-                                <input type="hidden" name="tag" value="{{.Tag}}">
+                                <input type="hidden" name="id" value="{{.ID}}">
                                 <button type="submit" class="btn btn-danger" onclick="return confirm('Remove this interest?')">Remove</button>
                             </form>
-                            {{end}}
                         </li>
                         {{end}}
                     </ul>
@@ -305,20 +339,20 @@
                     <h2>Add New Interest</h2>
                     <form action="/interests/add" method="POST">
                         <div class="form-group">
-                            <label>Topic Tag (e.g., distributed-systems)</label>
-                            <input type="text" name="tag" required placeholder="machine-learning">
+                            <label>Topic Tag</label>
+                            <input type="text" name="tag" required placeholder="e.g. distributed-systems">
                         </div>
                         <div class="form-group">
-                            <label>Intensity</label>
+                            <label>Intensity (How deep should we research?)</label>
                             <select name="intensity">
-                                <option value="high">High</option>
-                                <option value="medium" selected>Medium</option>
-                                <option value="light">Light</option>
+                                <option value="high">High (Deep dives, whitepapers)</option>
+                                <option value="medium" selected>Medium (Articles, tutorials)</option>
+                                <option value="light">Light (News, overviews)</option>
                             </select>
                         </div>
                         <div class="form-group">
-                            <label>Types (comma separated)</label>
-                            <input type="text" name="types" placeholder="blog, tutorial, paper">
+                            <label>Content Types (comma separated)</label>
+                            <input type="text" name="types" placeholder="blog, tutorial, case_study">
                         </div>
                         <button type="submit" class="btn btn-primary">Add Interest</button>
                     </form>
@@ -327,29 +361,61 @@
 
             <div class="sidebar">
                 <form action="/run" method="POST">
-                    <button type="submit" class="btn-massive" onclick="return confirm('This will start a background run and send an email. Continue?')">
+                    <button type="submit" class="btn-massive" onclick="return confirm('Start a background research run?')">
                         🚀 Trigger Run Now
                     </button>
                 </form>
 
                 <div class="card">
-                    <h2>System Status</h2>
-                    <div class="stat-row">
-                        <span class="stat-label">Schedule (Cron)</span>
-                        <span class="stat-value">{{.Config.Schedule.Cron}}</span>
-                    </div>
-                    <div class="stat-row">
-                        <span class="stat-label">Timezone</span>
-                        <span class="stat-value">{{.Config.Schedule.Timezone}}</span>
-                    </div>
-                    <div class="stat-row">
-                        <span class="stat-label">Delivery</span>
-                        <span class="stat-value">{{.Config.Email.Channel}}</span>
-                    </div>
-                    <div class="stat-row">
-                        <span class="stat-label">Models</span>
-                        <span class="stat-value">{{.Config.Models.Provider}}</span>
-                    </div>
+                    <h2>System Settings</h2>
+                    <form action="/settings" method="POST">
+                        <div class="form-group" style="display: flex; align-items: center; gap: 10px;">
+                            <input type="checkbox" name="schedule_enabled" id="schedule_enabled" style="width: auto; transform: scale(1.2);" {{if .Config.ScheduleEnabled}}checked{{end}}>
+                            <label for="schedule_enabled" style="margin-bottom: 0;">Enable Weekly Schedule</label>
+                        </div>
+                        <div class="form-group">
+                            <label>Day of Week</label>
+                            <select name="schedule_day">
+                                <option value="1" {{if eq .ScheduleDay "1"}}selected{{end}}>Monday</option>
+                                <option value="2" {{if eq .ScheduleDay "2"}}selected{{end}}>Tuesday</option>
+                                <option value="3" {{if eq .ScheduleDay "3"}}selected{{end}}>Wednesday</option>
+                                <option value="4" {{if eq .ScheduleDay "4"}}selected{{end}}>Thursday</option>
+                                <option value="5" {{if eq .ScheduleDay "5"}}selected{{end}}>Friday</option>
+                                <option value="6" {{if eq .ScheduleDay "6"}}selected{{end}}>Saturday</option>
+                                <option value="0" {{if eq .ScheduleDay "0"}}selected{{end}}>Sunday</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Time</label>
+                            <input type="time" name="schedule_time" value="{{.ScheduleTime}}" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Timezone</label>
+                            <input type="text" name="schedule_timezone" value="{{.Config.ScheduleTimezone}}" required>
+                        </div>
+                        
+                        <h3 style="font-size: 1rem; margin: 25px 0 15px; border-bottom: 1px solid var(--glass-border); padding-bottom: 5px;">BYOC (Bring Your Own Credentials)</h3>
+                        
+                        <div class="form-group">
+                            <label>OpenAI API Key</label>
+                            <input type="password" name="openai_key" placeholder="sk-proj-..." value="{{if .Config.OpenAIKeyEncrypted}}********{{end}}">
+                            <span class="help-text">Get one at <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com</a></span>
+                        </div>
+                        <div class="form-group">
+                            <label>SMTP Host</label>
+                            <input type="text" name="smtp_host" value="{{.Config.SMTPHost}}" placeholder="smtp.gmail.com">
+                        </div>
+                        <div class="form-group">
+                            <label>SMTP User (Email)</label>
+                            <input type="text" name="smtp_user" value="{{.Config.SMTPUser}}" placeholder="you@gmail.com">
+                        </div>
+                        <div class="form-group">
+                            <label>SMTP App Password</label>
+                            <input type="password" name="smtp_pass" placeholder="16-character app password" value="{{if .Config.SMTPPassEncrypted}}********{{end}}">
+                        </div>
+
+                        <button type="submit" class="btn btn-primary" style="margin-top: 10px;">Save Settings</button>
+                    </form>
                 </div>
             </div>
         </div>

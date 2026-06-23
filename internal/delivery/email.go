@@ -5,28 +5,45 @@ import (
 	"log/slog"
 	"net/smtp"
 	"os"
-
-	"dailyread/internal/config"
 )
 
 type Sender interface {
 	Send(digest *Digest) error
 }
 
+type EmailConfig struct {
+	Channel string
+	SMTP    struct {
+		Host     string
+		Port     int
+		User     string
+		Password string
+	}
+}
+
+type UserConfig struct {
+	Email string
+	Name  string
+}
+
 type SMTPSender struct {
-	cfg config.EmailConfig
+	cfg EmailConfig
 	to  string
 }
 
-func NewSender(cfg config.EmailConfig, user config.UserConfig) Sender {
+func NewSender(cfg EmailConfig, user UserConfig) Sender {
 	if cfg.Channel != "smtp" {
 		slog.Warn("Unsupported email channel, falling back to DryRunSender", "channel", cfg.Channel)
 		return &DryRunSender{}
 	}
 
-	// Verify required env vars
-	if os.Getenv("SMTP_HOST") == "" || os.Getenv("SMTP_PORT") == "" {
-		slog.Warn("SMTP credentials not fully configured in env, falling back to DryRunSender")
+	// Prefer config credentials, fallback to env vars for global setup
+	host := cfg.SMTP.Host
+	if host == "" {
+		host = os.Getenv("SMTP_HOST")
+	}
+	if host == "" {
+		slog.Warn("SMTP credentials not fully configured, falling back to DryRunSender")
 		return &DryRunSender{}
 	}
 
@@ -37,10 +54,17 @@ func NewSender(cfg config.EmailConfig, user config.UserConfig) Sender {
 }
 
 func (s *SMTPSender) Send(digest *Digest) error {
-	host := os.Getenv("SMTP_HOST")
-	port := os.Getenv("SMTP_PORT")
-	user := os.Getenv("SMTP_USER")
-	pass := os.Getenv("SMTP_PASS")
+	host := s.cfg.SMTP.Host
+	port := fmt.Sprintf("%d", s.cfg.SMTP.Port)
+	user := s.cfg.SMTP.User
+	pass := s.cfg.SMTP.Password
+
+	if host == "" {
+		host = os.Getenv("SMTP_HOST")
+		port = os.Getenv("SMTP_PORT")
+		user = os.Getenv("SMTP_USER")
+		pass = os.Getenv("SMTP_PASS")
+	}
 
 	slog.Info("Sending digest via SMTP", "to", s.to, "host", host)
 

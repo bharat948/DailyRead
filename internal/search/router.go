@@ -7,11 +7,17 @@ import (
 	"sync"
 	"time"
 
-	"dailyread/internal/config"
 	"dailyread/internal/domain"
 	"github.com/cenkalti/backoff/v4"
 	"github.com/sony/gobreaker"
 )
+
+type SearchConfig struct {
+	Primary  string
+	Fallback string
+	Fanout   bool
+	Priority []string
+}
 
 type Router struct {
 	providers []Searcher
@@ -20,7 +26,7 @@ type Router struct {
 	mu        sync.RWMutex
 }
 
-func NewRouter(cfg config.SearchConfig, available []Searcher) *Router {
+func NewRouter(cfg SearchConfig, available []Searcher) *Router {
 	r := &Router{
 		fanout:   cfg.Fanout,
 		breakers: make(map[string]*gobreaker.CircuitBreaker),
