@@ -101,7 +101,7 @@ Every requirement maps to a concrete part of the design so nothing is lost.
 | Scheduler | `robfig/cron/v3` | Battle-tested cron with timezone support |
 | Config | YAML via `gopkg.in/yaml.v3` + `env` overrides for secrets | Human-editable; secrets stay in env, not committed |
 | Config reload | `fsnotify/fsnotify` | Hot-reload interest/schedule changes without restart |
-| LLM | **`github.com/anthropics/anthropic-sdk-go`** | Official SDK; typed model constants, tool-use loop, streaming, prompt caching |
+| LLM | **`github.com/anthropics/anthropic-sdk-go`** & **`github.com/openai/openai-go`** | Provider-agnostic interface in `internal/llm` supporting both Anthropic and OpenAI. |
 | HTTP client | stdlib `net/http` + per-request timeouts + retry wrapper | No heavy dependency; full control over timeouts/backoff |
 | Article extraction | `go-shiori/go-readability` | Strips boilerplate → clean text for summarization |
 | PDF text (optional) | `ledongthuc/pdf` | Extract text from downloaded PDFs for summaries |
@@ -264,72 +264,57 @@ Constraints validated at config load: exactly **one** `primary: true`; at least 
 
 ## 8. Multi-Agent Design & Model Routing
 
-A small set of single-purpose agents, each pinned to the cheapest model that does the job well. This directly satisfies NFR4 ("use smaller models for smaller tasks").
+A small set of single-purpose agents, each pinned to the cheapest/best model that does the job well. The system uses a **provider-agnostic abstraction** in `internal/llm` to support both Anthropic and OpenAI.
 
-| Agent | Task | Model | Thinking / effort | Why this tier |
-|---|---|---|---|---|
-| **Query Planner** | interests+history → search queries (structured) | `claude-haiku-4-5` | thinking disabled | cheap, structured, high volume |
-| **Deep-Research** | agentic search→read→re-search loop | `claude-opus-4-8` | adaptive, effort `high` | open-ended reasoning + tool use |
-| **Triage** | score/filter candidates (structured) | `claude-haiku-4-5` (escalate borderline → `claude-sonnet-4-6`) | Haiku: disabled; Sonnet: adaptive | high volume, simple decisions |
-| **Per-doc Summarizer** | summarize a fetched article/PDF | `claude-haiku-4-5` | disabled | one doc per call, cheap |
-| **Curator** | final what/how/why plan (structured) | `claude-opus-4-8` | adaptive, effort `high`/`xhigh` | deep synthesis, user-facing quality |
-| **Compactor** | fold week into long-term profile | `claude-haiku-4-5` | disabled | summarization |
+| Agent | Task | Suggested Model (Anthropic/OpenAI) | Why this tier |
+|---|---|---|---|
+| **Query Planner** | interests+history → search queries (structured) | `claude-haiku-4-5` / `gpt-4o-mini` | cheap, structured, high volume |
+| **Deep-Research** | agentic search→read→re-search loop | `claude-opus-4-8` / `o3-mini` | open-ended reasoning + tool use |
+| **Triage** | score/filter candidates (structured) | `claude-haiku-4-5` / `gpt-4o-mini` | high volume, simple decisions |
+| **Per-doc Summarizer** | summarize a fetched article/PDF | `claude-haiku-4-5` / `gpt-4o-mini` | one doc per call, cheap |
+| **Curator** | final what/how/why plan (structured) | `claude-opus-4-8` / `o3-mini` | deep synthesis, user-facing quality |
+| **Compactor** | fold week into long-term profile | `claude-haiku-4-5` / `gpt-4o-mini` | summarization |
 
-### Model facts that constrain the implementation (verified against the Anthropic Go SDK)
+### Provider-Agnostic Abstraction
 
-- **Model IDs / constants:** `anthropic.ModelClaudeOpus4_8` (`"claude-opus-4-8"`), `anthropic.ModelClaudeSonnet4_6` (`"claude-sonnet-4-6"`), `anthropic.ModelClaudeHaiku4_5_20251001` (`"claude-haiku-4-5"`).
-- **Pricing / context (for budget math, §14):**
-  | Model | Input $/1M | Output $/1M | Context | Max output |
-  |---|---|---|---|---|
-  | Opus 4.8 | $5.00 | $25.00 | 1M | 128K |
-  | Sonnet 4.6 | $3.00 | $15.00 | 1M | 64K |
-  | Haiku 4.5 | $1.00 | $5.00 | 200K | 64K |
-- **Thinking:** Opus 4.8 / Sonnet 4.6 use **adaptive** thinking (`thinking: {type: "adaptive"}`); `budget_tokens` is **rejected (400)** on Opus 4.8. **Haiku 4.5 does *not* support adaptive thinking or the `effort` parameter** — leave thinking unset/`disabled` for Haiku agents and do **not** pass `output_config.effort` to Haiku (it errors). This is encapsulated in the model router so call sites can't get it wrong.
-- **Effort:** `output_config.effort` (`low|medium|high|xhigh|max`) on Opus 4.8 / Sonnet 4.6 only. Use `high` for the research/curation agents; lower for cheap stages.
-- **Structured outputs** (Opus 4.8 / Sonnet 4.6 / Haiku 4.5): use `OutputConfig.Format` (json_schema) or `strict: true` tools so Planner/Triage/Curator return validated JSON — no brittle string parsing.
-- **Prompt caching:** put each agent's stable system prompt + tool list first with `CacheControl: anthropic.NewCacheControlEphemeralParam()`; keep volatile content (the week's data) after the breakpoint. Min cacheable prefix is 4096 tokens on Opus/Haiku, 2048 on Sonnet — only the large research/curation system prompts will actually cache.
-- **Streaming:** the Curator can emit up to 128K tokens; use `client.Messages.NewStreaming(...)` and `message.Accumulate(...)` for any call with large `max_tokens` to avoid HTTP timeouts.
+The LLM logic is hidden behind a unified interface:
 
-### Model router (single seam)
+```go
+// internal/llm/client.go
+type Message struct {
+    Role    string // "user", "assistant", "system"
+    Content string
+    ToolCalls []ToolCall
+}
+
+type Client interface {
+    // For simple generation or chat
+    Chat(ctx context.Context, req ChatRequest) (*ChatResponse, error)
+    
+    // For structured JSON output (maps to Anthropic json_schema or OpenAI ResponseFormat)
+    Structured(ctx context.Context, req StructuredRequest, dest interface{}) error
+    
+    // Agentic tool-use loop
+    ResearchLoop(ctx context.Context, req LoopRequest, tools []Tool, maxRounds int) (string, error)
+}
+```
+
+- **Configuration:** `models.provider` globally selects the provider (`anthropic` or `openai`), and individual model overrides map to the respective provider's model names.
+- **Thinking / Effort:** Mapped dynamically by the implementation. For Anthropic: `claude-opus-4-8` gets `thinking: adaptive` and `effort: high`. For OpenAI: `o3-mini` gets `reasoning_effort: high`. `claude-haiku-4-5` and `gpt-4o-mini` get no thinking/effort params.
+- **Prompt Caching:** Anthropic uses explicit `CacheControl` ephemeral params; OpenAI caches automatically based on prefix matching. The abstraction ignores manual caching params for OpenAI.
+- **Structured Outputs:** The abstraction accepts a Go struct (and/or its JSON Schema) and maps it to `OutputConfig.Format` for Anthropic or `ResponseFormatJSONSchema` for OpenAI.
+
+### Model Router (Single Seam)
 
 ```go
 // internal/llm/router.go
 type Role int
 const ( RolePlanner Role = iota; RoleResearch; RoleTriage; RoleSummarize; RoleCurate; RoleCompact )
 
-type ModelSpec struct {
-    Model   anthropic.Model
-    Effort  string // "" when unsupported (Haiku)
-    Adaptive bool  // false for Haiku
-    MaxTokens int64
-    Stream  bool
-}
-
-func (r *Router) Spec(role Role) ModelSpec { /* table-driven, config-overridable */ }
+func (r *Router) ClientFor(role Role) Client { /* returns provider-specific client with configured model */ }
 ```
 
-All agents call through `Router` + a thin `llm.Client` wrapper that applies retries, prompt caching, the correct thinking/effort per model, and structured-output decoding. **Models are config-overridable** so the operator can, e.g., promote Triage to Sonnet without code changes.
-
-### Tool-use loop (Go, manual loop for control)
-
-The Deep-Research agent uses a manual loop so we can log, gate, and budget each tool call:
-
-```go
-messages := []anthropic.MessageParam{ anthropic.NewUserMessage(...) }
-for round := 0; round < cfg.MaxRounds; round++ {
-    resp, err := client.Messages.New(ctx, anthropic.MessageNewParams{
-        Model: spec.Model, MaxTokens: spec.MaxTokens,
-        Thinking: adaptive(spec),                 // OfAdaptive for Opus; omit for Haiku
-        OutputConfig: effortCfg(spec),            // effort:high for Opus
-        Messages: messages, Tools: researchTools, // web_search, fetch_url
-    })
-    // handle err with typed-error classification + retry (see §15)
-    messages = append(messages, resp.ToParam())
-    if resp.StopReason != anthropic.StopReasonToolUse { break }
-    results := executeTools(ctx, resp.Content)    // calls search router / fetcher; budget-guarded
-    messages = append(messages, anthropic.NewUserMessage(results...))
-}
-```
+All agents call through `Router.ClientFor(role)`. The operator can swap providers or models easily without code changes.
 
 ---
 
@@ -721,11 +706,9 @@ Suggested schedule
 
 ## Appendix D — LLM Call Conventions (enforced by `internal/llm`)
 
-- Opus 4.8 / Sonnet 4.6: `Thinking = adaptive`, `OutputConfig.Effort = "high"` (research/curate).
-- Haiku 4.5: **no** `effort`, **no** adaptive thinking (would 400) — thinking unset/disabled.
-- Large outputs (Curator): **stream** + `Accumulate`.
-- Structured agents: `OutputConfig.Format` (json_schema) or `strict: true` tools; validate after decode.
-- Stable system prompt + tools first, `CacheControl: ephemeral` on the last system block.
-- Wrap every call: classify `*anthropic.Error` via `errors.As`, retry transient, handle `StopReason == refusal`, record `tokens_in/out` + `request_id`.
+- **Anthropic Rules:** Opus 4.8 / Sonnet 4.6 use `Thinking = adaptive`, `OutputConfig.Effort = "high"`. Haiku 4.5 uses **no** effort, **no** adaptive thinking. Ephemeral caching on system prompts.
+- **OpenAI Rules:** `o1`/`o3-mini` use `reasoning_effort: high`. Structured outputs use `ResponseFormatJSONSchema` with `Strict: true`.
+- **Agnostic Usage:** Agents only interact with `llm.Client` (Standardized `Message` and `Tool` types).
+- Wrap every call: retry transient errors (429/5xx/network) and track `tokens_in/out`.
 ```
 ```

@@ -19,3 +19,11 @@ DailyRead is a Go service that performs deep web research and curates a personal
 - **APIs Used:**
   - **Tavily API**: Used for AI-optimized web search (returns clean article content). Requires `TAVILY_API_KEY`.
   - **DuckDuckGo HTML/Instant Answer API**: Keyless fallback.
+
+### Phase 2: LLM Core
+**Dependencies & APIs:**
+- `github.com/anthropics/anthropic-sdk-go` - Official Anthropic SDK
+- `github.com/openai/openai-go` - Official OpenAI SDK
+- **APIs Used:**
+  - **Anthropic API**: Used for Claude models (Opus, Sonnet, Haiku). Requires `ANTHROPIC_API_KEY`.
+  - **OpenAI API**: Used for OpenAI models (o1, o3-mini, gpt-4o). Requires `OPENAI_API_KEY`.

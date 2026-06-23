@@ -30,8 +30,9 @@ search:
   searxng_base_url: ""                         # set to enable
 
 models:                     # optional overrides; defaults from router table
-  triage: "claude-haiku-4-5"
-  research: "claude-opus-4-8"
+  provider: "openai"       # openai | anthropic
+  triage: "gpt-4o-mini"
+  research: "o3-mini"
 
 budgets:
   research_max_rounds: 8

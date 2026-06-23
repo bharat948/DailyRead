@@ -53,6 +53,7 @@ type SearchConfig struct {
 }
 
 type ModelsConfig struct {
+	Provider string `yaml:"provider"`
 	Triage   string `yaml:"triage"`
 	Research string `yaml:"research"`
 }
@@ -113,6 +114,22 @@ func (l *Loader) Get() *Config {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.cfg
+}
+
+func (l *Loader) Save() error {
+	l.mu.RLock()
+	data, err := yaml.Marshal(l.cfg)
+	l.mu.RUnlock()
+	
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	if err := os.WriteFile(l.path, data, 0644); err != nil {
+		return fmt.Errorf("failed to write config file: %w", err)
+	}
+
+	return nil
 }
 
 func (l *Loader) Watch() error {

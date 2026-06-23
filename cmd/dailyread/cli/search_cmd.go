@@ -9,6 +9,7 @@ import (
 	"dailyread/internal/config"
 	"dailyread/internal/search"
 	"dailyread/internal/search/ddg"
+	"dailyread/internal/search/serpapi"
 	"dailyread/internal/search/tavily"
 	"github.com/spf13/cobra"
 )
@@ -32,6 +33,7 @@ var searchCmd = &cobra.Command{
 
 		available := []search.Searcher{
 			tavily.New(),
+			serpapi.New(),
 			ddg.New(),
 		}
 

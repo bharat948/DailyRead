@@ -3,7 +3,7 @@ user:
   name: "Bharat"
 
 schedule:
-  cron: "0 7 * * SAT"      # Saturday 07:00
+  cron: "* * * * *"      # Every minute for testing
   timezone: "Asia/Kolkata"
   catch_up: true
 
@@ -22,16 +22,17 @@ interests:
     intensity: light
 
 search:
-  priority: [tavily, brave, searxng, ddg]
+  priority: [tavily, serpapi, searxng, ddg]
   fanout: true
   monthly_caps: 
     tavily: 900
-    brave: 1800
+    serpapi: 100
   searxng_base_url: ""                         # set to enable
 
 models:                     # optional overrides; defaults from router table
-  triage: "claude-haiku-4-5"
-  research: "claude-opus-4-8"
+  provider: "openai"
+  triage: "gpt-4o-mini"
+  research: "gpt-4o-mini"
 
 budgets:
   research_max_rounds: 8

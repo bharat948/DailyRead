@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"dailyread/internal/config"
+	"dailyread/internal/domain"
 	"github.com/cenkalti/backoff/v4"
 	"github.com/sony/gobreaker"
 )
@@ -91,6 +92,9 @@ func (r *Router) searchSequential(ctx context.Context, q Query) ([]Result, error
 					slog.Warn("Search provider error", "provider", p.Name(), "error", sErr)
 					return sErr
 				}
+				if stats := domain.StatsFromContext(ctx); stats != nil {
+					stats.AddWebRequest()
+				}
 				results = res
 				return nil
 			}, backoff.WithContext(b, ctx))
@@ -147,6 +151,9 @@ func (r *Router) searchFanout(ctx context.Context, q Query) ([]Result, error) {
 					res, sErr := prov.Search(ctx, q)
 					if sErr != nil {
 						return sErr
+					}
+					if stats := domain.StatsFromContext(ctx); stats != nil {
+						stats.AddWebRequest()
 					}
 					provResults = res
 					return nil

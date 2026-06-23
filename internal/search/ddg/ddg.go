@@ -65,52 +65,26 @@ func (p *Provider) Search(ctx context.Context, q search.Query) ([]search.Result,
 	}
 	html := string(bodyBytes)
 
-	return []search.Result{{Content: html}}, nil
-	// DuckDuckGo lite structures results as tables. 
-	// We'll do a basic string search for simplicity, but a robust regex/goquery is ideal.
+	linkRe := regexp.MustCompile(`(?s)<a rel="nofollow" href="([^"]+)" class='result-link'>(.*?)</a>`)
+	snippetRe := regexp.MustCompile(`(?s)<td class='result-snippet'>\s*(.*?)\s*</td>`)
+	
+	links := linkRe.FindAllStringSubmatch(html, -1)
+	snippets := snippetRe.FindAllStringSubmatch(html, -1)
 	
 	var results []search.Result
-	
-	// A more generic block regex for DDG Lite
-	parts := strings.Split(html, "<tr")
-	
-	count := 0
-	for _, part := range parts {
-		if count >= q.MaxResults && q.MaxResults > 0 {
+	for i := 0; i < len(links) && i < len(snippets); i++ {
+		if q.MaxResults > 0 && i >= q.MaxResults {
 			break
 		}
 		
-		if strings.Contains(part, "result-snippet") {
-			// Extract URL
-			urlStart := strings.Index(part, `href="`) + 6
-			if urlStart < 6 { continue }
-			urlEnd := strings.Index(part[urlStart:], `"`)
-			if urlEnd == -1 { continue }
-			resUrl := part[urlStart : urlStart+urlEnd]
-			
-			// Extract Title (rudimentary)
-			titleStart := strings.Index(part, `class="result-link">`) + 20
-			if titleStart < 20 { continue }
-			titleEnd := strings.Index(part[titleStart:], `</a>`)
-			if titleEnd == -1 { continue }
-			resTitle := stripTags(part[titleStart : titleStart+titleEnd])
-			
-			// Extract snippet
-			snipStart := strings.Index(part, `class="result-snippet">`) + 23
-			if snipStart < 23 { continue }
-			snipEnd := strings.Index(part[snipStart:], `</a>`)
-			if snipEnd == -1 { continue }
-			resSnippet := stripTags(part[snipStart : snipStart+snipEnd])
-			
-			results = append(results, search.Result{
-				Title:   resTitle,
-				URL:     resUrl,
-				Snippet: resSnippet,
-				Source:  p.Name(),
-				Score:   0.5, // Fallback score
-			})
-			count++
-		}
+		results = append(results, search.Result{
+			Title:   stripTags(links[i][2]),
+			URL:     links[i][1],
+			Snippet: stripTags(snippets[i][1]),
+			Content: stripTags(snippets[i][1]), // DDG doesn't provide full content
+			Source:  p.Name(),
+			Score:   0.5, // Fallback score
+		})
 	}
 
 	return results, nil
