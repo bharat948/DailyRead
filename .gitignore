@@ -5,12 +5,19 @@
 *.so
 *.dylib
 
-# Project specifics
+# DailyRead specific binaries
 dailyread.exe
 dailyread
+
+# Database and SQLite Journals
 dailyread.db
+*.db-shm
+*.db-wal
+*-journal
+*.sqlite3-journal
+
+# Data directories
 downloads/
-.env
 
 # Test binary, built with `go test -c`
 *.test
@@ -28,6 +35,7 @@ daily-logs/
 *.log
 
 # Environment files
+.env
 .env.local
 .env.*
 

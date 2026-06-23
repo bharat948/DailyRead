@@ -1,13 +1,18 @@
 package observability
 
 import (
+	"io"
 	"log/slog"
 	"os"
 )
 
 // InitLogger initializes a global JSON structured logger.
+// It writes to both stdout and a daily rolling log file.
 func InitLogger() {
-	handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+	roller := NewDailyRollingWriter("daily-logs", "dailyread")
+	multi := io.MultiWriter(os.Stdout, roller)
+
+	handler := slog.NewJSONHandler(multi, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	})
 	logger := slog.New(handler)
