@@ -6,8 +6,8 @@
 *.dylib
 
 # DailyRead specific binaries
-dailyread.exe
-dailyread
+/dailyread.exe
+/dailyread
 
 # Database and SQLite Journals
 dailyread.db
