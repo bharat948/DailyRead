@@ -110,10 +110,12 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	userID := s.getUserSession(r)
-	if s.triggerRun != nil && userID != "" {
-		go s.triggerRun(userID) // Execute asynchronously
+	if s.pipe != nil && userID != "" {
+		if _, err := s.pipe.TriggerAsync(userID, "manual"); err != nil {
+			slog.Error("failed to trigger run from dashboard", "user_id", userID, "error", err)
+		}
 	}
-	
+
 	setFlash(w, "Pipeline execution started in the background! Check console logs.", false)
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }

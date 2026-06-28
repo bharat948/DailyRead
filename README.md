@@ -1,58 +1,183 @@
 # DailyRead
 
-## What is the system about
-DailyRead is a pure-Go background daemon that performs deep web research on a weekly cadence to curate a personalized reading list (case studies, PDFs, articles) for its users. It learns from a compacted history of past suggestions to track the user's evolving interests and emails a "what / how / why to read" digest containing direct links and downloads.
+> **Your personal AI news anchor.** At a scheduled time, DailyRead researches what matters to you, writes your briefing, and delivers it — remembering everything it told you before.
 
-Designed for reliability and minimal dependencies, the system uses a multi-agent LLM architecture where small, specialized agents (like Claude Haiku or GPT-4o-mini) handle routing and triage, while a stronger agent (Claude Opus or o3-mini) handles the deep research loop.
+---
 
-## Architecture & Design Decisions
+## What it does
 
-### Multi-Tenant SaaS Transformation
-Initially built as a single-user CLI application configured via `config.yaml`, the system has been architected into a Multi-Tenant SaaS platform:
-- **Storage:** We transitioned from YAML files to an embedded **SQLite** database (`modernc.org/sqlite` which is CGO-free, ensuring easy deployment). SQLite is sufficient for the early stages of a SaaS and keeps operational complexity low. Future scale out can easily adapt to Postgres.
-- **Authentication:** We use `gorilla/sessions` with `HttpOnly`, `Secure` cookies to manage user logins. Passwords are hashed via `bcrypt`. 
-- **Bring Your Own Credentials (BYOC):** Because AI and Search APIs can be expensive, the architecture shifts API costs to the user. Users can input their own OpenAI/Anthropic keys and SMTP credentials via the web dashboard.
-- **Dynamic Scheduling:** The background scheduler dynamically manages individual `cron` jobs for each user's unique timezone and schedule preference.
-- **Web UI:** A sleek, minimal web interface provides users with control over their scheduling, interests, and API credentials.
+DailyRead is a Go daemon that runs a multi-agent research pipeline on a schedule. For each of your configured interests it:
 
-### Pipeline execution
-1. **Load:** Reads user's interests, intensity preferences, and API credentials from the DB.
-2. **Plan:** A Query Planner agent generates search queries.
-3. **Research:** A Deep-Research agent runs a tool-use loop (search -> fetch -> read -> re-search) using providers like Tavily and DuckDuckGo to accumulate candidate articles.
-4. **Triage:** Candidates are scored on relevance, novelty, and intensity fit.
-5. **Curate:** A Curator agent produces the structured reading plan.
-6. **Deliver:** The digest is rendered into an HTML email and sent via the user's SMTP account.
+1. **Researches** — a Deep-Research agent searches the web, reads full articles, and distills them into a growing **global research corpus** (no URL is ever fetched twice)
+2. **Filters** — a novelty filter drops anything it has already delivered to you (cross-run dedup via a per-user `user_seen` index)
+3. **Triages** — a Triage agent (Haiku-class) scores and selects the best candidates by relevance, depth, and diversity
+4. **Curates** — a Curator agent (Opus-class) frames each item with a personalized **Why it matters**, **How to read it**, and **When to read it** — tuned to your long-term profile
+5. **Delivers** — renders a rich HTML + plaintext briefing email and sends it
+6. **Compacts** — a Compactor agent (Haiku-class) folds the run's themes into your evolving **user profile** so the anchor remembers and improves
 
-## How to setup
+---
+
+## Architecture
+
+```
+schedule / HTTP API / CLI
+        │
+        ▼
+  pipeline.Service
+  ├── Stage: research  (Researcher agent + global memory corpus)
+  ├── Stage: triage    (Triage agent — Haiku)
+  ├── Stage: curate    (Curator agent — Opus)
+  ├── Stage: persist   (digest_items + user_seen → SQLite)
+  ├── Stage: deliver   (HTML+text email via SMTP)
+  └── Stage: compact   (Compactor agent — Haiku → user_profile)
+
+Two memory layers (SQLite, pure-Go, no CGO):
+  Global  → resources, topic_resources, search_cache
+  User    → runs, digest_items, user_seen, user_profile
+```
+
+**Provider-agnostic:** swap between Anthropic (Claude) and OpenAI by setting `models_provider` in your config or the user's settings. The LLM router assigns the right model tier per role automatically.
+
+---
+
+## Quick start
 
 ### Prerequisites
-- **Go 1.26+** (No CGO required)
 
-### Installation
+- Go 1.22+
+- An Anthropic **or** OpenAI API key
+- (Optional) Tavily API key for higher-quality search
 
-1. **Clone and build:**
-   ```bash
-   git clone <your-repo>/DailyRead
-   cd DailyRead
-   go build -o dailyread.exe ./cmd/dailyread
-   ```
+### Build
 
-2. **Start the Platform:**
-   Start the DailyRead web server and background daemon. This command will automatically initialize the database in the `data/` directory and start listening for HTTP connections.
-   ```bash
-   ./dailyread.exe start --port 8080
-   ```
+```bash
+git clone https://github.com/bharat948/DailyRead.git
+cd DailyRead
+go build -o dailyread.exe ./cmd/dailyread
+```
 
-3. **Access Dashboard & Register:**
-   Navigate to `http://localhost:8080/register` in your web browser. Create an account, and log in.
+### Configure
 
-4. **Bring Your Own Credentials (BYOC):**
-   In the Settings dashboard, you will need to provide:
-   - **OpenAI API Key** (or Anthropic API Key based on model provider)
-   - **SMTP Credentials** (e.g. your Gmail address and an App Password) to allow the system to send emails on your behalf.
-   - **Tavily API Key** (optional, fallback to free search engines if omitted)
+Create a `.env` file in the project root:
 
-5. **Run the Daemon:**
-   Once configured, the background daemon will automatically trigger your personal research pipeline based on your cron schedule. You can also manually trigger a run via the Web UI "Trigger Run Now" button.
+```env
+# LLM — choose one
+ANTHROPIC_API_KEY=sk-ant-...
+# OPENAI_API_KEY=sk-...
 
-*(You can also force a run via CLI for a specific user ID for testing purposes by running `./dailyread.exe run-now --user <uuid>`)*
+# Search (optional but recommended)
+TAVILY_API_KEY=tvly-...
+
+# Email delivery (optional)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=you@gmail.com
+SMTP_PASS=your-app-password      # Gmail: generate an App Password
+
+# Default user shortcut for CLI
+DEFAULT_USER_EMAIL=you@gmail.com
+```
+
+### Run
+
+```bash
+# Start the server (web dashboard + JSON API + background scheduler)
+./dailyread.exe start --port 8080
+
+# Register at http://localhost:8080/register
+# Log in, add interests, set a schedule — or use the API below
+```
+
+---
+
+## JSON API
+
+The server exposes a REST API at `/api/`. No auth required (single-user local deployment).
+User is resolved automatically when there is exactly one account, or pass `?user=<id>` / `X-User-ID` header.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/healthz` | Liveness check |
+| `POST` | `/api/runs` | Trigger a pipeline run (async) |
+| `GET` | `/api/runs` | List runs (`?limit=N`) |
+| `GET` | `/api/runs/{id}` | Run detail + delivered items |
+| `GET` | `/api/digests` | Recently delivered items — past-digest memory |
+| `GET` | `/api/profile` | User's compacted long-term profile |
+| `GET` | `/api/topics/{topic}` | Global research corpus for a topic |
+| `GET` | `/api/interests` | List interests |
+| `POST` | `/api/interests` | Add interest `{"tag","intensity","types","primary"}` |
+| `DELETE` | `/api/interests/{id}` | Remove interest |
+
+### Example flow
+
+```bash
+# Trigger a run (returns immediately; pipeline runs in background)
+curl -X POST http://localhost:8080/api/runs
+# → {"id":"<run-id>","status":"running",...}
+
+# Poll until finished
+curl http://localhost:8080/api/runs/<run-id>
+# → {"run":{...,"status":"succeeded"},"items":[...]}
+
+# Read your delivered digest with Why/How/Slot framing
+curl http://localhost:8080/api/digests
+
+# Inspect the global research corpus for a topic
+curl http://localhost:8080/api/topics/distributed-systems
+
+# See your evolving profile (grows after every run)
+curl http://localhost:8080/api/profile
+
+# Run manually from CLI
+./dailyread.exe run-now
+```
+
+---
+
+## Project structure
+
+```
+cmd/dailyread/         CLI (cobra) — start, run-now, migrate
+internal/
+  agents/
+    research/          Deep-Research agent — agentic web search + fetch loop
+    triage/            Triage agent — score and select candidates
+    curator/           Curator agent — personalized why/how/slot framing
+    compact/           Compactor agent — fold run into user profile
+  db/                  SQLite init, migrations, repository (global + user memory)
+  domain/              Core types (Candidate, Resource, Run, DigestItem, UserProfile…)
+  delivery/            HTML + plaintext email rendering + SMTP sender
+  fetch/               HTTP fetcher with go-readability extraction
+  llm/                 Provider-agnostic client (Anthropic + OpenAI) + model router
+  pipeline/            Pipeline orchestrator — all stages wired together
+  schedule/            Per-user cron scheduler (robfig/cron)
+  search/              Search router + circuit breakers + Tavily / SerpAPI / DDG adapters
+  web/                 HTTP server — dashboard (HTML) + JSON API
+```
+
+---
+
+## Technology
+
+| Concern | Choice |
+|---------|--------|
+| Language | Go 1.22+ (single static binary, no CGO) |
+| Database | SQLite via `modernc.org/sqlite` (pure Go, no CGO) |
+| LLM | `anthropic-sdk-go` + `openai-go`, provider-agnostic interface |
+| Search | Tavily / SerpAPI / DuckDuckGo with circuit breakers (`sony/gobreaker`) |
+| Scheduler | `robfig/cron/v3` |
+| HTTP | stdlib `net/http` |
+| Article extraction | `go-shiori/go-readability` |
+| Retry/backoff | `cenkalti/backoff/v4` |
+| CLI | `spf13/cobra` |
+
+---
+
+## Roadmap
+
+- [ ] Text-to-speech (OpenAI TTS) — spoken audio briefings
+- [ ] Audio playback scheduling — the anchor "goes on air" at your chosen time
+- [ ] Scheduled-run catch-up (missed windows)
+- [ ] Curator follow-up awareness (reference prior weeks in framing)
+- [ ] Private podcast RSS feed for mobile listening
+- [ ] Feedback loop (mark items read/liked → reinforce profile)

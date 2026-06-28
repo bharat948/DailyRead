@@ -10,22 +10,25 @@ import (
 	"dailyread/internal/domain"
 	"dailyread/internal/fetch"
 	"dailyread/internal/llm"
-	"dailyread/internal/search"
 )
 
 type Researcher struct {
 	llmClient llm.Client
-	searcher  *search.Router
+	searcher  SearchProvider
 	fetcher   fetch.Fetcher
+	mem       Memory
 	model     string
 	maxRounds int
 }
 
-func New(client llm.Client, searcher *search.Router, fetcher fetch.Fetcher, model string, maxRounds int) *Researcher {
+// New builds a Researcher. mem is the global research memory (corpus + caches);
+// pass nil to run without persistence (e.g. in isolated tests).
+func New(client llm.Client, searcher SearchProvider, fetcher fetch.Fetcher, mem Memory, model string, maxRounds int) *Researcher {
 	return &Researcher{
 		llmClient: client,
 		searcher:  searcher,
 		fetcher:   fetcher,
+		mem:       mem,
 		model:     model,
 		maxRounds: maxRounds,
 	}
@@ -89,11 +92,13 @@ Do not output any markdown formatting around the final array (no json tags), jus
 		},
 	}
 
+	beginMsg := "Begin your research now. Remember to output ONLY the JSON array when you are finished." + r.warmStartContext(interest.Tag)
+
 	req := llm.LoopRequest{
 		Model:  r.model,
 		System: systemPrompt,
 		Messages: []llm.Message{
-			{Role: llm.RoleUser, Content: "Begin your research now. Remember to output ONLY the JSON array when you are finished."},
+			{Role: llm.RoleUser, Content: beginMsg},
 		},
 		MaxTokens: 8000,
 	}
@@ -107,12 +112,9 @@ Do not output any markdown formatting around the final array (no json tags), jus
 			if err := json.Unmarshal([]byte(args), &parsed); err != nil {
 				return "", err
 			}
-			results, err := r.searcher.Search(ctx, search.Query{Text: parsed.Query, MaxResults: 3})
-			if err != nil {
-				return "", err
-			}
-			resBytes, _ := json.Marshal(results)
-			return string(resBytes), nil
+			// Routes through global research memory: cache hit, or live search +
+			// distill into the corpus.
+			return r.memSearch(ctx, interest.Tag, parsed.Query)
 
 		case "fetch_url":
 			var parsed struct {
@@ -121,15 +123,8 @@ Do not output any markdown formatting around the final array (no json tags), jus
 			if err := json.Unmarshal([]byte(args), &parsed); err != nil {
 				return "", err
 			}
-			content, err := r.fetcher.Fetch(ctx, parsed.URL)
-			if err != nil {
-				return "", err
-			}
-			// Truncate to save tokens (4000 chars is enough to judge relevance)
-			if len(content) > 4000 {
-				content = content[:4000] + "\n...[TRUNCATED]"
-			}
-			return content, nil
+			// Corpus hit, or live fetch + distilled write-back.
+			return r.memFetch(ctx, parsed.URL)
 		}
 		return "", fmt.Errorf("unknown tool: %s", name)
 	}
@@ -153,6 +148,10 @@ Do not output any markdown formatting around the final array (no json tags), jus
 		slog.Error("Failed to parse agent JSON output", "output", finalJSON, "error", err)
 		return nil, fmt.Errorf("failed to parse JSON from agent: %w", err)
 	}
+
+	// Promote the final picks into the global corpus so future runs (and other
+	// users) start warm on this topic.
+	r.recordCandidates(interest.Tag, candidates)
 
 	return candidates, nil
 }

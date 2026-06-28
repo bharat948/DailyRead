@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"dailyread/internal/db"
+	"dailyread/internal/pipeline"
 	"github.com/gorilla/sessions"
 )
 
@@ -20,10 +21,10 @@ type Server struct {
 	repo *db.Repository
 	tmpl *template.Template
 	mux  *http.ServeMux
-	
-	// Inject the pipeline runner function so we can trigger it from the web
-	triggerRun func(userID string)
-	
+
+	// The pipeline service, used to trigger runs from the web UI and JSON API.
+	pipe *pipeline.Service
+
 	// Inject the scheduler updater so we can modify jobs when settings change
 	updateSchedule func(userID string, enabled bool, expr string, timezone string)
 }
@@ -42,7 +43,7 @@ func initSessionStore() {
 	}
 }
 
-func NewServer(repo *db.Repository, triggerRun func(string), updateSchedule func(string, bool, string, string)) (*Server, error) {
+func NewServer(repo *db.Repository, pipe *pipeline.Service, updateSchedule func(string, bool, string, string)) (*Server, error) {
 	initSessionStore()
 
 	tmpl, err := template.ParseFS(templateFS, "templates/*.html")
@@ -54,7 +55,7 @@ func NewServer(repo *db.Repository, triggerRun func(string), updateSchedule func
 		repo:           repo,
 		tmpl:           tmpl,
 		mux:            http.NewServeMux(),
-		triggerRun:     triggerRun,
+		pipe:           pipe,
 		updateSchedule: updateSchedule,
 	}
 
@@ -77,6 +78,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /interests/add", s.requireAuth(s.handleAddInterest))
 	s.mux.HandleFunc("POST /interests/delete", s.requireAuth(s.handleDeleteInterest))
 	s.mux.HandleFunc("POST /settings", s.requireAuth(s.handleSettingsPost))
+
+	// JSON HTTP API (auth-free, single-user/local).
+	s.registerAPI()
 }
 
 // requireAuth is a simple middleware to ensure the user is logged in
